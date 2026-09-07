@@ -1,0 +1,16 @@
+# ClusterIP (the default type) -- namespace-internal only. Never exposed
+# via NodePort/LoadBalancer (non-negotiable constraint in the brief).
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: dso202-assignment-01
+  labels:
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    tier: backend
+  ports:
+    - port: 8080
+      targetPort: 8080

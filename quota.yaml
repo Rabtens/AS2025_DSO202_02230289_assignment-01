@@ -1,0 +1,50 @@
+---
+# --- ResourceQuota ---
+# Sizing rationale (documented per Task 6 requirement, see README section
+# "Task 6 — Resource Governance Justification" for the full explanation):
+# 3 Deployments x 1 replica = 3 Pods at steady state. The quota allows up to
+# 6 Pods so a rolling update (old + new Pod briefly co-existing) never gets
+# blocked by the quota itself. CPU/memory totals are the LimitRange container
+# defaults below multiplied by 6, so the two objects are consistent with
+# each other rather than two independently-guessed numbers.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dso202-a1-quota
+  namespace: dso202-assignment-01
+spec:
+  hard:
+    pods: "6"
+    requests.cpu: "1500m"
+    requests.memory: "1536Mi"
+    limits.cpu: "3"
+    limits.memory: "3072Mi"
+    persistentvolumeclaims: "1"
+    services: "3"
+---
+# --- LimitRange ---
+# Applies a sane default request/limit to any container in the namespace
+# that doesn't specify its own -- appropriate for three small single-process
+# containers (nginx, a small Node.js API, Postgres) running on a laptop-hosted
+# kind node, and small enough that 6 Pods at these defaults fit inside the
+# ResourceQuota above with no manual arithmetic mismatch.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: dso202-a1-limits
+  namespace: dso202-assignment-01
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "250m"
+        memory: "256Mi"
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+      max:
+        cpu: "1"
+        memory: "1Gi"

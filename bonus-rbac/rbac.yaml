@@ -1,0 +1,32 @@
+# Optional bonus (Task 8): a read-only ServiceAccount scoped to this
+# namespace only. Full Role/RoleBinding mechanics are Unit II content --
+# this is the minimal outline permitted for bonus credit under Unit I.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dso202-a1-viewer
+  namespace: dso202-assignment-01
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dso202-a1-read-only
+  namespace: dso202-assignment-01
+rules:
+  - apiGroups: ["", "apps"]
+    resources: ["pods", "services", "deployments", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dso202-a1-read-only-binding
+  namespace: dso202-assignment-01
+subjects:
+  - kind: ServiceAccount
+    name: dso202-a1-viewer
+    namespace: dso202-assignment-01
+roleRef:
+  kind: Role
+  name: dso202-a1-read-only
+  apiGroup: rbac.authorization.k8s.io

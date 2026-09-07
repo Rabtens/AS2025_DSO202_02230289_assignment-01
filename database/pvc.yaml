@@ -1,0 +1,17 @@
+# storageClassName is deliberately omitted so the PVC binds to whatever
+# StorageClass is marked default on the kind cluster (kind ships one --
+# usually named "standard", backed by the local-path-provisioner) rather
+# than a name hardcoded here that might not match every student's cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-pvc
+  namespace: dso202-assignment-01
+  labels:
+    tier: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

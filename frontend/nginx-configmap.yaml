@@ -1,0 +1,77 @@
+# Task 5 fix -- same-origin API proxy.
+#
+# The frontend image bakes BACKEND_URL into config.js, which is then executed by
+# the *browser on the host machine*. A cluster-internal DNS name like
+# `http://backend-svc:8080` cannot resolve there (the browser never talks to
+# CoreDNS), so every fetch failed with "NetworkError when attempting to fetch
+# resource" and the status pill read "backend unreachable".
+#
+# The fix is to stop asking the browser to reach the backend directly. nginx --
+# which *is* inside the cluster -- proxies /backend/* through to backend-svc, so
+# the browser only ever calls back to the origin it already loaded the page from.
+# That works identically over NodePort 30080 and over `kubectl port-forward`,
+# needs no CORS, and keeps backend-svc ClusterIP-only as the brief requires.
+#
+# This replaces the image's own /etc/nginx/nginx.conf; everything except the
+# `location /backend/` block below is reproduced from that original file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx-config
+  namespace: dso202-assignment-01
+  labels:
+    tier: frontend
+data:
+  nginx.conf: |
+    worker_processes auto;
+    pid /tmp/nginx.pid;
+
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path       /tmp/proxy_temp;
+      fastcgi_temp_path     /tmp/fastcgi_temp;
+      uwsgi_temp_path       /tmp/uwsgi_temp;
+      scgi_temp_path        /tmp/scgi_temp;
+
+      sendfile on;
+      keepalive_timeout 65;
+
+      server {
+        listen 8080;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location = /config.js {
+          add_header Cache-Control "no-store";
+        }
+
+        # --- the fix -------------------------------------------------------
+        # BACKEND_URL is "/backend", so app.js calls /backend/api/tasks and
+        # /backend/api/status. The trailing slash on proxy_pass strips the
+        # /backend prefix, so backend-svc receives /api/tasks and /api/status
+        # unchanged. `backend-svc` resolves here because nginx runs inside the
+        # cluster and does use CoreDNS.
+        location /backend/ {
+          proxy_pass http://backend-svc:8080/;
+          proxy_http_version 1.1;
+          proxy_set_header Host              $host;
+          proxy_set_header X-Real-IP         $remote_addr;
+          proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        # -------------------------------------------------------------------
+
+        location / {
+          try_files $uri $uri/ /index.html;
+        }
+      }
+    }

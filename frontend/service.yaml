@@ -1,0 +1,19 @@
+# NodePort -- the only tier allowed to be reachable from outside the cluster.
+# 30080 must fall inside the kind cluster's extraPortMappings (see the kind
+# config used in Practical 1) for a browser to reach it directly; otherwise
+# use `kubectl port-forward` as documented in the README.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: dso202-assignment-01
+  labels:
+    tier: frontend
+spec:
+  type: NodePort
+  selector:
+    tier: frontend
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

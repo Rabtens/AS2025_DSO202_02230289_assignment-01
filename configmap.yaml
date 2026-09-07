@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-tracker-config
+  namespace: dso202-assignment-01
+data:
+  # --- consumed by the backend ---
+  DB_HOST: "db-svc"
+  DB_PORT: "5432"
+  DB_NAME: "taskdb"
+  APP_PORT: "8080"
+  CORS_ORIGIN: "*"
+  # --- consumed by the official postgres image (must match DB_NAME above) ---
+  POSTGRES_DB: "taskdb"
+  # --- consumed by the frontend entrypoint script ---
+  # This value is baked into config.js and then executed by the BROWSER, which
+  # runs on the host and cannot resolve cluster DNS names such as `backend-svc`.
+  # It is therefore a same-origin path, not a URL: nginx in the frontend Pod
+  # proxies /backend/* to backend-svc (see frontend/nginx-configmap.yaml).
+  BACKEND_URL: "/backend"

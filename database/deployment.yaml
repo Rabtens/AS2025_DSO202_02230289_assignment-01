@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-deployment
+  namespace: dso202-assignment-01
+  labels:
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: database
+  template:
+    metadata:
+      labels:
+        tier: database
+    spec:
+      containers:
+        - name: db
+          image: sarojsanyasi/dso202-db:1.0
+          ports:
+            - containerPort: 5432
+          env:
+            # The official postgres image only understands POSTGRES_*,
+            # never DB_* -- this is the naming mismatch called out in
+            # Task 2/3 of the brief.
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: db-pvc

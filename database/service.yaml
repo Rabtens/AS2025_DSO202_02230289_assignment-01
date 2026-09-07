@@ -1,0 +1,17 @@
+# Headless (clusterIP: None) -- reachable by name from inside the namespace
+# only. Never NodePort/LoadBalancer for the database tier (non-negotiable
+# constraint in the brief).
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-svc
+  namespace: dso202-assignment-01
+  labels:
+    tier: database
+spec:
+  clusterIP: None
+  selector:
+    tier: database
+  ports:
+    - port: 5432
+      targetPort: 5432
