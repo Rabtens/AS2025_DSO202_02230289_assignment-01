@@ -1,0 +1,19 @@
+# ClusterIP only. Outside traffic reaches it exclusively through the Ingress
+# controller (/backend/*), never through a NodePort or LoadBalancer.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: task-tracker
+    tier: backend
+  ports:
+    - name: http          # "http" prefix = Istio parses this as HTTP (L7)
+      port: 8080
+      targetPort: http

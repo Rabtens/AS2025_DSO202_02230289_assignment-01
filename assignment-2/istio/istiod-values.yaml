@@ -1,0 +1,55 @@
+# Helm values for the istiod control plane (chart istio/istiod 1.30.5).
+#
+#   helm install istio-base istio/base -n istio-system --create-namespace --version 1.30.5
+#   helm install istiod istio/istiod -n istio-system --version 1.30.5 -f istio/istiod-values.yaml --wait
+#
+# Sized for a single kind node inside a ~1.7 GiB Docker Desktop VM. The chart
+# defaults (istiod requesting 2Gi, each sidecar allowed 1Gi / 2 CPU) would not
+# schedule here at all, and a 2-CPU sidecar limit would also exceed this
+# namespace's LimitRange max of 1 CPU.
+pilot:
+  replicaCount: 1
+  autoscaleEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
+  env:
+    # Run istio-proxy as a Kubernetes native sidecar (an init container with
+    # restartPolicy: Always). It then starts BEFORE the app container and
+    # stops AFTER it - so the backup Job's pg_dump has a working mTLS proxy
+    # from its first packet, and the Job can still complete (a classic
+    # sidecar would keep the Job Pod running forever).
+    ENABLE_NATIVE_SIDECARS: "true"
+
+global:
+  proxy:
+    # Every injected istio-proxy - counted in quota.yaml.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  proxy_init:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+meshConfig:
+  # One access-log line per request on each sidecar's stdout
+  # (kubectl logs <pod> -c istio-proxy) - how README §7.5 shows retries,
+  # response flags and mTLS in action.
+  accessLogFile: /dev/stdout
+  # Sidecars may only reach destinations known to the mesh registry
+  # (Kubernetes Services). A compromised backend cannot call arbitrary
+  # hosts on the internet.
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY

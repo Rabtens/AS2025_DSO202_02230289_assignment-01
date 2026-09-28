@@ -1,0 +1,2 @@
+service/db-headless created
+statefulset.apps/db created

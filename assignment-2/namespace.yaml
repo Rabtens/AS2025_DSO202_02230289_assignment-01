@@ -1,0 +1,15 @@
+# A separate namespace from Assignment 1 (dso202-assignment-01), so the Unit I
+# deployment keeps running untouched and the two can be compared side by side.
+#
+# istio-injection=enabled tells istiod's mutating admission webhook (§2.5) to
+# add an istio-proxy sidecar to every Pod created in this namespace. It must
+# be present BEFORE the workloads are created - the webhook only acts at Pod
+# creation, it never retrofits a sidecar into a Pod that is already running.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dso202-assignment-02
+  labels:
+    course: dso202
+    assignment: "2"
+    istio-injection: enabled

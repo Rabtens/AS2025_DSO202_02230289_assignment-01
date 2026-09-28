@@ -1,0 +1,115 @@
+# §2.4 - teaches the API server a new resource type: TaskBackup.
+#
+# A TaskBackup says "back up the Task Tracker database on this schedule and
+# keep the last N dumps". It is only a record in etcd - the operator in
+# operator/controller.py is what turns it into a CronJob and a PVC.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: taskbackups.dso202.cst.edu.bt   # must be <plural>.<group>
+spec:
+  group: dso202.cst.edu.bt
+  scope: Namespaced
+  names:
+    kind: TaskBackup
+    listKind: TaskBackupList
+    plural: taskbackups
+    singular: taskbackup
+    shortNames: ["tb"]
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      # Enables PATCH .../taskbackups/<name>/status. The operator writes status
+      # there, so a user editing spec can never overwrite it (and vice versa),
+      # and status writes do not bump metadata.generation.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Schedule
+          type: string
+          jsonPath: .spec.schedule
+        - name: Retain
+          type: integer
+          jsonPath: .spec.retain
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Last-Backup
+          type: date
+          jsonPath: .status.lastBackupTime
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: ["schedule"]
+              properties:
+                schedule:
+                  type: string
+                  description: Standard 5-field cron expression, e.g. "0 2 * * *".
+                  # Five whitespace-separated fields. Full cron semantics are
+                  # checked by the CronJob API when the operator applies it;
+                  # a schedule that passes this but fails there is reported
+                  # in status.phase=Error by the operator.
+                  pattern: '^(\S+\s+){4}\S+$'
+                retain:
+                  type: integer
+                  description: Number of most recent dumps to keep on the backup volume.
+                  minimum: 1
+                  maximum: 30
+                  default: 7
+                suspend:
+                  type: boolean
+                  description: Pause scheduling without deleting existing dumps.
+                  default: false
+                storageSize:
+                  type: string
+                  description: Size of the PVC that stores the dumps.
+                  default: 512Mi
+                  pattern: '^[0-9]+(Mi|Gi)$'
+                target:
+                  type: object
+                  default: {}
+                  properties:
+                    host:
+                      type: string
+                      description: Database host - the StatefulSet's stable per-Pod DNS name.
+                      default: db-0.db-headless
+                    database:
+                      type: string
+                      default: taskdb
+                    credentialsSecret:
+                      type: string
+                      description: >-
+                        Secret with DB_USER / DB_PASSWORD keys. The operator only
+                        references it by name in the Job's Pod spec; it never reads it.
+                      default: task-tracker-secret
+              x-kubernetes-validations:
+                # CEL rule evaluated by the API server on every update:
+                # moving the dumps to a different database would silently
+                # mix two databases' history on one volume.
+                - rule: "!has(oldSelf.target) || !has(oldSelf.target.host) || self.target.host == oldSelf.target.host"
+                  message: "target.host is immutable; create a new TaskBackup for a different database"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Suspended", "Error"]
+                message:
+                  type: string
+                cronJobName:
+                  type: string
+                pvcName:
+                  type: string
+                lastBackupTime:
+                  type: string
+                  format: date-time
+                observedGeneration:
+                  type: integer
+                  format: int64

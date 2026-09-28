@@ -1,0 +1,14 @@
+namespace/dso202-assignment-02 created
+resourcequota/dso202-a2-quota created
+limitrange/dso202-a2-limits created
+configmap/task-tracker-config created
+secret/task-tracker-secret created
+rolebinding.rbac.authorization.k8s.io/task-tracker-auditors created
+serviceaccount/ci-deployer created
+role.rbac.authorization.k8s.io/task-tracker-ci-deployer created
+rolebinding.rbac.authorization.k8s.io/task-tracker-ci-deployer created
+role.rbac.authorization.k8s.io/task-tracker-developer created
+rolebinding.rbac.authorization.k8s.io/task-tracker-developers created
+serviceaccount/db-sa created
+serviceaccount/backend-sa created
+serviceaccount/frontend-sa created

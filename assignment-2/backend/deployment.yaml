@@ -1,0 +1,88 @@
+# Stateless API tier - stays a Deployment (§2.1.6: replicas are
+# interchangeable, so a StatefulSet would only add ordered, slower rollouts).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: backend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0   # never drop below 2 ready replicas during a rollout
+  selector:
+    matchLabels:
+      app: task-tracker
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: task-tracker
+        tier: backend
+        version: v1       # used by the Istio DestinationRule subsets
+    spec:
+      # Dedicated identity. The Istio AuthorizationPolicy on the database
+      # admits exactly this ServiceAccount's mTLS identity (istio/).
+      serviceAccountName: backend-sa
+      containers:
+        - name: backend
+          image: sarojsanyasi/dso202-backend:1.0
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            # Every key the backend reads comes from these two objects. The
+            # extra keys (POSTGRES_*, BACKEND_URL) are simply ignored.
+            - configMapRef:
+                name: task-tracker-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          # The process does not open :8080 until it has reached the database
+          # (src/db.js waitForDatabase). The startup probe gives it up to
+          # 5 min to do so; liveness/readiness only start after it succeeds,
+          # so a slow database never gets a healthy backend restarted.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          # Liveness = "is the process wedged?" Deliberately NOT /api/status:
+          # that endpoint returns 503 when the DATABASE is down, and restarting
+          # the backend cannot fix the database.
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 15
+            failureThreshold: 3
+          # Readiness = "should the Ingress/mesh send me traffic?" Here the DB
+          # check is exactly right: a backend that cannot reach Postgres is
+          # removed from the Service endpoints instead of returning 5xx.
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

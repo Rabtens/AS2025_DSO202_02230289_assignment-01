@@ -1,0 +1,66 @@
+# The operator itself: one replica of controller.py.
+#
+# The code is shipped in a ConfigMap generated from operator/controller.py
+# (see README §6.2), so the stock python image can run it without building
+# and publishing a custom image. A production operator would be a built,
+# versioned image; the ConfigMap keeps this assignment self-contained.
+#
+# replicas: 1 and strategy Recreate: two copies would reconcile the same
+# objects concurrently. Real operators run several replicas with leader
+# election (a Lease object, like kube-controller-manager); a single
+# Recreate replica is the simple, correct alternative.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskbackup-operator
+  namespace: dso202-assignment-02
+  labels:
+    app: taskbackup-operator
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: taskbackup-operator
+  template:
+    metadata:
+      labels:
+        app: taskbackup-operator
+      annotations:
+        # The operator only talks to the API server - which is outside the
+        # mesh - so it gains nothing from a sidecar. Leaving it out saves
+        # 64Mi on this memory-constrained node.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: taskbackup-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: operator
+          image: python:3.11-slim
+          command: ["python", "-u", "/opt/operator/controller.py"]
+          env:
+            - name: RESYNC_SECONDS
+              value: "60"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: code
+              mountPath: /opt/operator
+              readOnly: true
+      volumes:
+        - name: code
+          configMap:
+            name: taskbackup-operator-code

@@ -1,0 +1,28 @@
+# Strategic-merge patch for the ingress-nginx controller Deployment
+# (applied with: kubectl patch deployment ingress-nginx-controller
+#   -n ingress-nginx --patch-file ingress/controller-mesh-patch.yaml)
+#
+# Puts the controller itself into the Istio mesh so that its traffic to
+# frontend-svc and backend-svc is mutual-TLS, which the STRICT
+# PeerAuthentication in istio/security.yaml requires.
+#
+#   sidecar.istio.io/inject: "true"
+#       inject an istio-proxy into the controller Pod.
+#   traffic.sidecar.istio.io/includeInboundPorts: ""
+#       do NOT intercept inbound traffic. Browsers are not in the mesh and
+#       speak plain HTTPS to NGINX on :80/:443; only the controller's
+#       OUTBOUND calls to Services go through the sidecar.
+#   traffic.sidecar.istio.io/excludeInboundPorts: "8443"
+#       the admission webhook port, called by the API server (not in mesh).
+#   traffic.sidecar.istio.io/excludeOutboundIPRanges
+#       the API server's Service IP; NGINX watches Ingress/Endpoints objects
+#       there and that connection must bypass the proxy.
+spec:
+  template:
+    metadata:
+      labels:
+        sidecar.istio.io/inject: "true"
+      annotations:
+        traffic.sidecar.istio.io/includeInboundPorts: ""
+        traffic.sidecar.istio.io/excludeInboundPorts: "8443"
+        traffic.sidecar.istio.io/excludeOutboundIPRanges: "10.96.0.1/32"

@@ -1,0 +1,12 @@
+# A Custom Resource - one instance of the TaskBackup type.
+# Everything not written here (target.host, target.database,
+# credentialsSecret, storageSize, suspend) is filled from the CRD's schema
+# defaults by the API server before it is stored.
+apiVersion: dso202.cst.edu.bt/v1
+kind: TaskBackup
+metadata:
+  name: nightly
+  namespace: dso202-assignment-02
+spec:
+  schedule: "0 2 * * *"   # 02:00 UTC every night
+  retain: 7

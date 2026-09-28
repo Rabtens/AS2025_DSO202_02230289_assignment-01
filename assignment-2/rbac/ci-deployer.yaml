@@ -1,0 +1,59 @@
+# A machine identity for a CI/CD pipeline (Unit IV) that ships new image
+# versions of the Task Tracker.
+#
+# It may:   update the image/replicas of the three workloads, and
+#           apply ConfigMaps (app configuration changes).
+# It may not: read or write Secrets, create new kinds of workloads, touch
+#           RBAC, delete anything, or act outside this namespace.
+#
+# resourceNames pins the workload rules to the three existing objects, so
+# even a leaked CI token cannot patch some other Deployment added to this
+# namespace later. (resourceNames cannot restrict "create" or "list" - the
+# object name is not known yet at create time - so those verbs are simply
+# not granted on workloads.)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer
+  namespace: dso202-assignment-02
+automountServiceAccountToken: false   # used from outside the cluster, via a requested token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: task-tracker-ci-deployer
+  namespace: dso202-assignment-02
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["backend", "frontend"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: ["db"]
+    verbs: ["get", "patch", "update"]
+  # Needed to watch "kubectl rollout status" to completion.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "replicasets"]
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["task-tracker-config"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: task-tracker-ci-deployer
+  namespace: dso202-assignment-02
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: dso202-assignment-02
+roleRef:
+  kind: Role
+  name: task-tracker-ci-deployer
+  apiGroup: rbac.authorization.k8s.io

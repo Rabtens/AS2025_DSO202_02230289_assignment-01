@@ -1,0 +1,60 @@
+# Resource governance, recalculated for Unit II.
+#
+# What changed since Assignment 1 and why the numbers moved:
+#   * backend and frontend now run 2 replicas each (the Ingress load-balances
+#     across them), plus db-0, the operator, and a backup Job Pod.
+#   * EVERY Pod in this namespace now has a second container, istio-proxy,
+#     injected by Istio. Its requests/limits (50m/64Mi, 200m/128Mi, set in
+#     istio/istiod-values.yaml) count against this quota like any other
+#     container, so they are included below.
+#
+# Per-Pod totals (app container + istio-proxy):
+#   db-0       requests 250m+50m / 256Mi+64Mi   limits 500m+200m / 512Mi+128Mi
+#   backend    requests 100m+50m / 128Mi+64Mi   limits 300m+200m / 256Mi+128Mi   (x2)
+#   frontend   requests  50m+50m /  32Mi+64Mi   limits 100m+200m /  64Mi+128Mi   (x2)
+#   operator   requests  50m+50m /  64Mi+64Mi   limits 200m+200m / 128Mi+128Mi
+#   backup job requests 100m+50m / 128Mi+64Mi   limits 300m+200m / 256Mi+128Mi
+# Steady state (7 Pods): requests 1250m / 1376Mi, limits 3100m / 3072Mi.
+# The hard caps below leave ~1 Pod of headroom so a rolling update of the
+# largest Deployment (maxSurge 1) is never blocked by the quota itself.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dso202-a2-quota
+  namespace: dso202-assignment-02
+spec:
+  hard:
+    pods: "10"
+    requests.cpu: "1600m"
+    requests.memory: "1792Mi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    # db-0's data volume (volumeClaimTemplates) + the operator-created
+    # backup volume. A third PVC appears only if the StatefulSet is scaled.
+    persistentvolumeclaims: "3"
+    requests.storage: "4Gi"
+    services: "4"
+---
+# Defaults for any container that does not declare its own resources. Every
+# container in this assignment declares them explicitly (§2.1.6), so this
+# only acts as a safety net - e.g. for a Pod someone creates by hand.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: dso202-a2-limits
+  namespace: dso202-assignment-02
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      default:
+        cpu: "300m"
+        memory: "256Mi"
+      min:
+        cpu: "10m"
+        memory: "16Mi"
+      max:
+        cpu: "1"
+        memory: "1Gi"
